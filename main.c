@@ -2,13 +2,12 @@
 #include <omp.h>
 #include <stdlib.h>
 #include <math.h>
-#include <locale.h>
 
-#define GRID_SIZE 10
+#define GRID_SIZE 20
 
-#define PLANTS 150
-#define HERBIVORES 100
-#define CARNIVORES 50
+#define PLANTS 75
+#define HERBIVORES 30
+#define CARNIVORES 15
 
 #define HERBIVORE_OLD 20
 #define CARNIVORE_OLD 50
@@ -61,7 +60,11 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
                 if (j + 1 < GRID_SIZE && ecoSystem->grid[i][j + 1].type == PLANT) neighbors++;
                 if (j - 1 >= 0 && ecoSystem->grid[i][j - 1].type == PLANT) neighbors++;
                 if (neighbors > 3) {
+                    printf("Plant died by overpopulation\n");
                     ecoSystem->grid[i][j].type = EMPTY; // The plant dies
+                    ecoSystem->grid[i][j].energy = 0;
+                    ecoSystem->grid[i][j].age = 0;
+                    ecoSystem->grid[i][j].starve = 0;
                     continue;
                 }
 
@@ -90,12 +93,16 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
                 if (ecoSystem->grid[x][y].type == EMPTY && (rand() % 100) < reproduction_chance) {
                     ecoSystem->grid[x][y].type = PLANT;
                     ecoSystem->grid[x][y].energy = 1;
+                    ecoSystem->grid[x][y].age = 0;
+                    ecoSystem->grid[x][y].starve = 0;
                 }
 
             }
         }
     }
 }
+
+
 
 void update_herbivore(EcoSystem *ecoSystem){
     for(int i = 0; i < GRID_SIZE; i++) {
@@ -107,6 +114,9 @@ void update_herbivore(EcoSystem *ecoSystem){
                 if (ecoSystem->grid[i][j].starve >= 3) {
                     printf("Herbivore died by starvation\n");
                     ecoSystem->grid[i][j].type = EMPTY; // The herbivore dies
+                    ecoSystem->grid[i][j].energy = 0;
+                    ecoSystem->grid[i][j].age = 0;
+                    ecoSystem->grid[i][j].starve = 0;
                     continue;
                 }
 
@@ -117,7 +127,12 @@ void update_herbivore(EcoSystem *ecoSystem){
                 double r = (double) rand() / RAND_MAX;
                 if (r < death_by_age) {
                     printf("Herbivore died by age\n");
+
                     ecoSystem->grid[i][j].type = EMPTY; // The herbivore dies
+                    ecoSystem->grid[i][j].energy = 0;
+                    ecoSystem->grid[i][j].age = 0;
+                    ecoSystem->grid[i][j].starve = 0;
+
                     continue;
                 }
 
@@ -144,28 +159,37 @@ void update_herbivore(EcoSystem *ecoSystem){
 
                 if ( ecoSystem -> grid[x][y].type == PLANT){
                     // Finds a plant and eats it
+                    printf("Herbivore ate plant\n");
                     ecoSystem -> grid[x][y] = ecoSystem -> grid[i][j];
                     ecoSystem -> grid[x][y].energy += 1;
+                    ecoSystem -> grid[x][y].starve = 0;
 
                     ecoSystem -> grid[i][j].type = EMPTY;
                     ecoSystem -> grid[i][j].starve = 0;
                     ecoSystem -> grid[i][j].energy = 0;
 
                 } else {
-                    // No plant found, herbivore starves
                     ecoSystem -> grid[i][j].starve += 1;
                 }
 
                 if (ecoSystem -> grid[x][y].type == EMPTY){
                     // Reproduction elegible
-                    if (ecoSystem -> grid[i][j].energy > 5) {
+                    if (ecoSystem -> grid[i][j].energy > 3) {
                         // Each herbivore needs to have eaten 5 plants to reproduce
                         ecoSystem -> grid[x][y].type = HERBIVORE;
                         ecoSystem -> grid[x][y].energy = 2;
+                        ecoSystem -> grid[x][y].starve = 0;
+                        ecoSystem -> grid[x][y].age = 0;
+
+                        printf("Herbivore reproduced\n");
                     } else {
                         // Herbivore moves to the empty cell
                         ecoSystem -> grid[x][y] = ecoSystem -> grid[i][j];
+
                         ecoSystem -> grid[i][j].type = EMPTY;
+                        ecoSystem -> grid[i][j].energy = 0;
+                        ecoSystem -> grid[i][j].starve = 0;
+                        ecoSystem -> grid[i][j].age = 0;
                     }
 
                 } else if (ecoSystem -> grid[x][y].type == CARNIVORE){
@@ -190,6 +214,9 @@ void update_herbivore(EcoSystem *ecoSystem){
                     if (ecoSystem -> grid[x][y].type == EMPTY) {
                         ecoSystem->grid[x][y] = ecoSystem->grid[i][j];
                         ecoSystem->grid[i][j].type = EMPTY;
+                        ecoSystem->grid[i][j].energy = 0;
+                        ecoSystem->grid[i][j].starve = 0;
+                        ecoSystem->grid[i][j].age = 0;
                     }
                 }
 
@@ -208,16 +235,27 @@ void update_carnivore(EcoSystem *ecoSystem){
 
                 // Death by starvation
                 if (ecoSystem->grid[i][j].starve >= 5) {
-                    ecoSystem->grid[i][j].type = EMPTY; // The herbivore dies
+                    printf("Carnivore died by starvation\n");
+
+                    ecoSystem->grid[i][j].type = EMPTY; // The carnivore dies
+                    ecoSystem->grid[i][j].energy = 0;
+                    ecoSystem->grid[i][j].age = 0;
+                    ecoSystem->grid[i][j].starve = 0;
+
                     continue;
                 }
 
                 ecoSystem -> grid[i][j].age += 1;
 
                 // Death by age
-                double death_by_age = death_probability(ecoSystem->grid[i][j].age, CARNIVORE_OLD, 10);
+                double death_by_age = death_probability(ecoSystem->grid[i][j].age, CARNIVORE_OLD, 2);
                 if (rand() % 100 < death_by_age * 100) {
+
                     ecoSystem->grid[i][j].type = EMPTY; // The herbivore dies
+                    ecoSystem->grid[i][j].energy = 0;
+                    ecoSystem->grid[i][j].age = 0;
+                    ecoSystem->grid[i][j].starve = 0;
+
                     continue;
                 }
 
@@ -242,14 +280,27 @@ void update_carnivore(EcoSystem *ecoSystem){
                 }
 
                 if(ecoSystem->grid[x][y].type == HERBIVORE){
-                    ecoSystem -> grid[x][y].type = CARNIVORE;
+                   // Carnivore eats herbivore
+                    ecoSystem -> grid[x][y] = ecoSystem -> grid[i][j];
                     ecoSystem -> grid[x][y].energy += 2;
+                    ecoSystem -> grid[x][y].starve = 0;
+
                     ecoSystem -> grid[i][j].type = EMPTY;
+                    ecoSystem -> grid[i][j].starve = 0;
+                    ecoSystem -> grid[i][j].energy = 0;
+                    ecoSystem -> grid[i][j].age = 0;
+
+                    printf("Carnivore ate herbivore\n");
                 } else if (ecoSystem -> grid[x][y].type == EMPTY){
                     // Reproduction
-                    if (ecoSystem -> grid[i][j].energy > 7) { // Each carnivore needs to have eaten 7 herbivores to reproduce
+                    if (ecoSystem -> grid[i][j].energy > 4) { // Each carnivore needs to have eaten 7 herbivores to reproduce
+
                         ecoSystem->grid[x][y].type = CARNIVORE;
-                        ecoSystem->grid[x][y].energy = 2;
+                        ecoSystem->grid[x][y].energy = 3;
+                        ecoSystem->grid[x][y].starve = 0;
+                        ecoSystem->grid[x][y].age = 0;
+
+                        printf("Carnivore reproduced\n");
                     }
                 } else {
                     // if there is no herbivore the carnivore will starve
@@ -279,6 +330,7 @@ void init_ecosystem(EcoSystem *ecoSystem) {
     for(int i = 0; i < PLANTS; i++) {
         int x = rand() % GRID_SIZE;
         int y = rand() % GRID_SIZE;
+
         ecoSystem->grid[x][y].type = PLANT;
         ecoSystem->grid[x][y].energy = 1; // Energía inicial de la planta
         ecoSystem->grid[x][y].age = 0;
@@ -287,6 +339,12 @@ void init_ecosystem(EcoSystem *ecoSystem) {
     for(int i = 0; i < HERBIVORES; i++) {
         int x = rand() % GRID_SIZE;
         int y = rand() % GRID_SIZE;
+
+        while (ecoSystem->grid[x][y].type != EMPTY) {
+            x = rand() % GRID_SIZE;
+            y = rand() % GRID_SIZE;
+        }
+
         ecoSystem->grid[x][y].type = HERBIVORE;
         ecoSystem->grid[x][y].energy = 2; // Energía inicial del herbívoro
         ecoSystem->grid[x][y].age = 0;
@@ -295,6 +353,12 @@ void init_ecosystem(EcoSystem *ecoSystem) {
     for(int i = 0; i < CARNIVORES; i++) {
         int x = rand() % GRID_SIZE;
         int y = rand() % GRID_SIZE;
+
+        while (ecoSystem->grid[x][y].type != EMPTY) {
+            x = rand() % GRID_SIZE;
+            y = rand() % GRID_SIZE;
+        }
+
         ecoSystem->grid[x][y].type = CARNIVORE;
         ecoSystem->grid[x][y].energy = 3; // Energía inicial del carnívoro
         ecoSystem->grid[x][y].age = 0;
@@ -305,8 +369,6 @@ void init_ecosystem(EcoSystem *ecoSystem) {
 
 int main() {
     // Configura la localización para soportar UTF-8
-    setlocale(LC_ALL, "");
-
     EcoSystem ecoSystem;
     init_ecosystem(&ecoSystem);
 
