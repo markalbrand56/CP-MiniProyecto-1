@@ -5,14 +5,14 @@
 
 #define GRID_SIZE 20
 
-#define PLANTS 150
+#define PLANTS 100
 #define HERBIVORES 50
 #define CARNIVORES 25
 
 #define HERBIVORE_OLD 20
 #define CARNIVORE_OLD 50
 
-#define MAX_TICKS 100
+#define MAX_TICKS 50
 #define STARVATION 5
 
 
@@ -42,7 +42,7 @@ double death_probability(int age, double inflection_point, double steepness) {
 
 
 void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
-
+    #pragma omp parallel for collapse(2)
     for(int i = 0; i < GRID_SIZE; i++) {
         for(int j = 0; j < GRID_SIZE; j++) {
             if(ecoSystem->grid[i][j].type == PLANT) {
@@ -96,6 +96,8 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
 
 
 void update_herbivore(EcoSystem *ecoSystem){
+    #pragma omp parallel for collapse(2)
+
     for(int i = 0; i < GRID_SIZE; i++) {
         for (int j = 0; j < GRID_SIZE; j++) {
 
@@ -145,11 +147,9 @@ void update_herbivore(EcoSystem *ecoSystem){
                 if ( ecoSystem -> grid[x][y].type == PLANT){
                     // Finds a plant and eats it
                     printf("Herbivore ate plant\n");
-                    ecoSystem -> grid[x][y] = ecoSystem -> grid[i][j];
-                    ecoSystem -> grid[x][y].energy += 1;
-                    ecoSystem -> grid[x][y].starve = 0;
-
+                    ecoSystem -> grid[x][y] = (Cell){ecoSystem -> grid[i][j].energy + 1, ecoSystem -> grid[i][j].age, 0, HERBIVORE};
                     ecoSystem -> grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The herbivore moves to the plant cell
+
                 } else if (ecoSystem -> grid[x][y].type == EMPTY){
                     ecoSystem -> grid[i][j].starve += 1;
 
@@ -192,7 +192,7 @@ void update_herbivore(EcoSystem *ecoSystem){
                     }
 
                     if (ecoSystem -> grid[x][y].type == EMPTY) {
-                        printf("\t\t\tHerbivore moved to avoid carnivore\n");
+                        printf("Herbivore moved to avoid carnivore\n");
                         ecoSystem->grid[x][y] = ecoSystem->grid[i][j];
                         ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The herbivore moves to the empty cell
                     }
@@ -204,6 +204,7 @@ void update_herbivore(EcoSystem *ecoSystem){
 }
 
 void update_carnivore(EcoSystem *ecoSystem){
+    #pragma omp parallel for collapse(2)
     for(int i = 0; i < GRID_SIZE; i++) {
         for (int j = 0; j < GRID_SIZE; j++) {
 
@@ -211,7 +212,7 @@ void update_carnivore(EcoSystem *ecoSystem){
             if (ecoSystem->grid[i][j].type == CARNIVORE ) {
 
                 // Death by starvation
-                if (ecoSystem->grid[i][j].starve > STARVATION) {
+                if (ecoSystem->grid[i][j].starve > STARVATION + 3) {
                     printf("Carnivore died by starvation\n");
 
                     ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY};  // The herbivore dies
@@ -252,20 +253,19 @@ void update_carnivore(EcoSystem *ecoSystem){
 
                 if(ecoSystem->grid[x][y].type == HERBIVORE){
                    // Carnivore eats herbivore
-                    ecoSystem -> grid[x][y] = (Cell){ecoSystem -> grid[x][y].energy +2, 0, 0, CARNIVORE}; // New carnivore is born
-
+                    ecoSystem -> grid[x][y] = (Cell){ecoSystem -> grid[i][j].energy +2, ecoSystem -> grid[i][j].age, 0, CARNIVORE};
                     ecoSystem -> grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The carnivore moves to the herbivore cell
 
                     printf("Carnivore ate herbivore\n");
                 } else if (ecoSystem -> grid[x][y].type == EMPTY){
-                    ecoSystem -> grid[i][j].starve += 1;
+                    //ecoSystem -> grid[i][j].starve += 1;
 
                     // Reproduction
                     if (ecoSystem -> grid[i][j].energy > 2) {
                         ecoSystem->grid[x][y] = (Cell){1, 0, 0, CARNIVORE}; // New carnivore is born
                         ecoSystem -> grid[i][j].energy -= 2;
 
-                        printf("Carnivore reproduced\n");
+                        printf("Carnivore reproduced,  energy %d\n", ecoSystem -> grid[i][j].energy);
                     } else {
                         // Carnivore moves to the empty cell
                         ecoSystem -> grid[x][y] = ecoSystem -> grid[i][j];
@@ -403,7 +403,7 @@ int main() {
         {
             #pragma omp section
             {
-                update_plant(&ecoSystem, 30);
+                update_plant(&ecoSystem, 25);
             }
 
             #pragma omp section
