@@ -13,7 +13,7 @@
 #define CARNIVORE_OLD 50
 
 #define MAX_TICKS 50
-#define STARVATION 5
+#define STARVATION 10
 
 
 typedef enum {
@@ -56,7 +56,6 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
                 if (j - 1 >= 0 && ecoSystem->grid[i][j - 1].type == PLANT) neighbors++;
 
                 if (neighbors > 3) {
-                    printf("Plant died by overpopulation\n");
                     ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY};  // The plant dies
                     continue;
                 }
@@ -258,7 +257,7 @@ void update_carnivore(EcoSystem *ecoSystem){
 
                     printf("Carnivore ate herbivore\n");
                 } else if (ecoSystem -> grid[x][y].type == EMPTY){
-                    //ecoSystem -> grid[i][j].starve += 1;
+                    ecoSystem -> grid[i][j].starve += 1;
 
                     // Reproduction
                     if (ecoSystem -> grid[i][j].energy > 2) {
