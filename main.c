@@ -3,16 +3,16 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define GRID_SIZE 20
+#define GRID_SIZE 30
 
 #define PLANTS 100
 #define HERBIVORES 50
 #define CARNIVORES 25
 
-#define HERBIVORE_OLD 20
+#define HERBIVORE_OLD 50
 #define CARNIVORE_OLD 50
 
-#define MAX_TICKS 50
+#define MAX_TICKS 1000
 #define STARVATION 10
 
 
@@ -27,6 +27,7 @@ typedef struct {
     int energy;
     int age;
     int starve;
+    bool acted;
     CellType type;
 } Cell;
 
@@ -40,12 +41,25 @@ double death_probability(int age, double inflection_point, double steepness) {
     return 1.0 / (1.0 + exp(-(age - inflection_point) / steepness));
 }
 
+void reset_acted(EcoSystem *ecoSystem) {
+    for(int i = 0; i < GRID_SIZE; i++) {
+        for(int j = 0; j < GRID_SIZE; j++) {
+            ecoSystem->grid[i][j].acted = false;
+        }
+    }
+}
+
 
 void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
-    #pragma omp parallel for collapse(2)
     for(int i = 0; i < GRID_SIZE; i++) {
         for(int j = 0; j < GRID_SIZE; j++) {
             if(ecoSystem->grid[i][j].type == PLANT) {
+
+                if (ecoSystem->grid[i][j].acted) {
+                    continue;
+                }
+
+                ecoSystem->grid[i][j].acted = true;
 
 
                 // Death by overpopulation
@@ -56,7 +70,7 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
                 if (j - 1 >= 0 && ecoSystem->grid[i][j - 1].type == PLANT) neighbors++;
 
                 if (neighbors > 3) {
-                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY};  // The plant dies
+                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, false, EMPTY};  // The plant dies
                     continue;
                 }
 
@@ -83,7 +97,7 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
 
                 // Cell is empy and the reproduction chance is greater that reproduction probability
                 if (ecoSystem->grid[x][y].type == EMPTY && (rand() % 100) < reproduction_chance) {
-                    ecoSystem->grid[x][y] = (Cell){1, 0, 0, PLANT};  // New plant is born
+                    ecoSystem->grid[x][y] = (Cell){1, 0, 0, true, PLANT};  // New plant is born
                 }
 
             }
@@ -95,17 +109,21 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance) {
 
 
 void update_herbivore(EcoSystem *ecoSystem){
-    #pragma omp parallel for collapse(2)
-
     for(int i = 0; i < GRID_SIZE; i++) {
         for (int j = 0; j < GRID_SIZE; j++) {
 
             if (ecoSystem->grid[i][j].type == HERBIVORE ) {
 
+                if (ecoSystem->grid[i][j].acted) {
+                    continue;
+                }
+
+                ecoSystem->grid[i][j].acted = true;
+
                 // Death by starvation
                 if (ecoSystem->grid[i][j].starve > STARVATION) {
                     printf("Herbivore died by starvation\n");
-                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY};  // The herbivore dies
+                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, false, EMPTY};  // The herbivore dies
                     continue;
                 }
 
@@ -117,7 +135,7 @@ void update_herbivore(EcoSystem *ecoSystem){
                 if (r < death_by_age) {
                     printf("Herbivore died by age\n");
 
-                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The herbivore dies
+                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, false, EMPTY}; // The herbivore dies
 
                     continue;
                 }
@@ -145,29 +163,30 @@ void update_herbivore(EcoSystem *ecoSystem){
 
                 if ( ecoSystem -> grid[x][y].type == PLANT){
                     // Finds a plant and eats it
-                    printf("Herbivore ate plant\n");
-                    ecoSystem -> grid[x][y] = (Cell){ecoSystem -> grid[i][j].energy + 1, ecoSystem -> grid[i][j].age, 0, HERBIVORE};
-                    ecoSystem -> grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The herbivore moves to the plant cell
+                    int e = ecoSystem -> grid[x][y].energy;  // Energy of the plant
+                    ecoSystem -> grid[x][y] = (Cell){ecoSystem -> grid[i][j].energy + e, ecoSystem -> grid[i][j].age, 0, true, HERBIVORE};
+                    ecoSystem -> grid[i][j] = (Cell){0, 0, 0, false, EMPTY}; // The herbivore moves to the plant cell
+                    printf("Herbivore ate plant, energy %d\n", ecoSystem -> grid[x][y].energy);
 
                 } else if (ecoSystem -> grid[x][y].type == EMPTY){
                     ecoSystem -> grid[i][j].starve += 1;
 
 
                     if (ecoSystem -> grid[i][j].energy > 2) {
-                        ecoSystem -> grid[x][y] = (Cell){1, 0, 0, HERBIVORE}; // New herbivore is born
-                        ecoSystem -> grid[i][j].energy -= 2;
+                        ecoSystem -> grid[x][y] = (Cell){1, 0, 0, true, HERBIVORE}; // New herbivore is born
+                        ecoSystem -> grid[i][j].energy -= 1;
 
                         printf("Herbivore reproduced\n");
                     } else {
                         // Herbivore moves to the empty cell
                         ecoSystem -> grid[x][y] = ecoSystem -> grid[i][j];
-                        ecoSystem -> grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The herbivore moves to the empty cell
+                        ecoSystem -> grid[i][j] = (Cell){0, 0, 0, false, EMPTY}; // The herbivore moves to the empty cell
                     }
 
                 } else if (ecoSystem -> grid[x][y].type == CARNIVORE){
-                    ecoSystem -> grid[i][j].starve += 1;
+//                    ecoSystem -> grid[i][j].starve += 1;
 
-                    if (rand() % 100 < 60) {
+                    if (rand() % 100 < 45) {
                         continue;
                     }
 
@@ -193,7 +212,7 @@ void update_herbivore(EcoSystem *ecoSystem){
                     if (ecoSystem -> grid[x][y].type == EMPTY) {
                         printf("Herbivore moved to avoid carnivore\n");
                         ecoSystem->grid[x][y] = ecoSystem->grid[i][j];
-                        ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The herbivore moves to the empty cell
+                        ecoSystem->grid[i][j] = (Cell){0, 0, 0, true, EMPTY}; // The herbivore moves to the empty cell
                     }
                 }
             }
@@ -203,18 +222,23 @@ void update_herbivore(EcoSystem *ecoSystem){
 }
 
 void update_carnivore(EcoSystem *ecoSystem){
-    #pragma omp parallel for collapse(2)
     for(int i = 0; i < GRID_SIZE; i++) {
         for (int j = 0; j < GRID_SIZE; j++) {
 
             //check if it has space and energy to reproduce
             if (ecoSystem->grid[i][j].type == CARNIVORE ) {
 
+                if (ecoSystem->grid[i][j].acted) {
+                    continue;
+                }
+
+                ecoSystem->grid[i][j].acted = true;
+
                 // Death by starvation
                 if (ecoSystem->grid[i][j].starve > STARVATION + 3) {
                     printf("Carnivore died by starvation\n");
 
-                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY};  // The herbivore dies
+                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, false, EMPTY};  // The herbivore dies
 
                     continue;
                 }
@@ -225,7 +249,7 @@ void update_carnivore(EcoSystem *ecoSystem){
                 double death_by_age = death_probability(ecoSystem->grid[i][j].age, CARNIVORE_OLD, 2);
                 if (rand() % 100 < death_by_age * 100) {
 
-                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The herbivore dies
+                    ecoSystem->grid[i][j] = (Cell){0, 0, 0, false, EMPTY}; // The herbivore dies
 
                     continue;
                 }
@@ -252,27 +276,28 @@ void update_carnivore(EcoSystem *ecoSystem){
 
                 if(ecoSystem->grid[x][y].type == HERBIVORE){
                    // Carnivore eats herbivore
-                    ecoSystem -> grid[x][y] = (Cell){ecoSystem -> grid[i][j].energy +2, ecoSystem -> grid[i][j].age, 0, CARNIVORE};
-                    ecoSystem -> grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The carnivore moves to the herbivore cell
+                   int e = ecoSystem -> grid[x][y].energy;  // Energy of the herbivore
+                    ecoSystem -> grid[x][y] = (Cell){ecoSystem -> grid[i][j].energy + e, ecoSystem -> grid[i][j].age, 0, true, CARNIVORE};
+                    ecoSystem -> grid[i][j] = (Cell){0, 0, 0, false, EMPTY}; // The carnivore moves to the herbivore cell
 
                     printf("Carnivore ate herbivore\n");
                 } else if (ecoSystem -> grid[x][y].type == EMPTY){
                     ecoSystem -> grid[i][j].starve += 1;
 
                     // Reproduction
-                    if (ecoSystem -> grid[i][j].energy > 2) {
-                        ecoSystem->grid[x][y] = (Cell){1, 0, 0, CARNIVORE}; // New carnivore is born
-                        ecoSystem -> grid[i][j].energy -= 2;
+                    if (ecoSystem -> grid[i][j].energy > 3) {
+                        ecoSystem->grid[x][y] = (Cell){1, 0, 0, false, CARNIVORE}; // New carnivore is born
+                        ecoSystem -> grid[i][j].energy -= 1;
 
                         printf("Carnivore reproduced,  energy %d\n", ecoSystem -> grid[i][j].energy);
                     } else {
                         // Carnivore moves to the empty cell
                         ecoSystem -> grid[x][y] = ecoSystem -> grid[i][j];
-                        ecoSystem -> grid[i][j] = (Cell){0, 0, 0, EMPTY}; // The carnivore moves to the empty cell
+                        ecoSystem -> grid[i][j] = (Cell){0, 0, 0, false, EMPTY}; // The carnivore moves to the empty cell
                     }
                 } else {
                     // if there is no herbivore the carnivore will starve
-                    ecoSystem -> grid[i][j].starve += 1;
+//                    ecoSystem -> grid[i][j].starve += 1;
                 }
 
             }
@@ -299,7 +324,7 @@ void init_ecosystem(EcoSystem *ecoSystem) {
         int x = rand() % GRID_SIZE;
         int y = rand() % GRID_SIZE;
 
-        ecoSystem->grid[x][y] = (Cell){1, 0, 0, PLANT};
+        ecoSystem->grid[x][y] = (Cell){2, 0, 0, false, PLANT};
     }
     for(int i = 0; i < HERBIVORES; i++) {
         int x = rand() % GRID_SIZE;
@@ -310,7 +335,7 @@ void init_ecosystem(EcoSystem *ecoSystem) {
             y = rand() % GRID_SIZE;
         }
 
-        ecoSystem->grid[x][y] = (Cell){0, 0, 0, HERBIVORE};
+        ecoSystem->grid[x][y] = (Cell){1, 0, 0, false, HERBIVORE};
     }
     for(int i = 0; i < CARNIVORES; i++) {
         int x = rand() % GRID_SIZE;
@@ -321,7 +346,7 @@ void init_ecosystem(EcoSystem *ecoSystem) {
             y = rand() % GRID_SIZE;
         }
 
-        ecoSystem->grid[x][y] = (Cell){0, 0, 0, CARNIVORE};
+        ecoSystem->grid[x][y] = (Cell){1, 0, 0, false, CARNIVORE};
     }
 }
 
@@ -331,43 +356,7 @@ int main() {
     EcoSystem ecoSystem;
     init_ecosystem(&ecoSystem);
 
-//    for (int i = 0; i < MAX_TICKS; i++){
-//        printf("Tick %d\n", i + 1);
-//
-//        int count_plants = 0;
-//        int count_herbivores = 0;
-//        int count_carnivores = 0;
-//        for (int t = 0; t < GRID_SIZE; t++) {
-//            for (int k = 0; k < GRID_SIZE; k++) {
-//                switch (ecoSystem.grid[t][k].type) {
-//                    case EMPTY:
-//                        printf(" E ");
-//                        break;
-//                    case PLANT:
-//                        printf(" P ");
-//                        count_plants++;
-//                        break;
-//                    case HERBIVORE:
-//                        printf(" H ");
-//                        count_herbivores++;
-//                        break;
-//                    case CARNIVORE:
-//                        printf(" C ");
-//                        count_carnivores++;
-//                        break;
-//                }
-//            }
-//            printf("\n");
-//        }
-//        printf("Plants: %d, Herbivores: %d, Carnivores: %d\n", count_plants, count_herbivores, count_carnivores);
-//        printf("\n");
-//
-//        update_plant(&ecoSystem, 30);
-//        update_herbivore(&ecoSystem);
-//        update_carnivore(&ecoSystem);
-//    }
-
-    for(int i = 0; i < MAX_TICKS; i++) {
+    for (int i = 0; i < MAX_TICKS; i++){
         printf("Tick %d\n", i + 1);
 
         int count_plants = 0;
@@ -398,24 +387,68 @@ int main() {
         printf("Plants: %d, Herbivores: %d, Carnivores: %d\n", count_plants, count_herbivores, count_carnivores);
         printf("\n");
 
-        #pragma omp parallel sections
-        {
-            #pragma omp section
-            {
-                update_plant(&ecoSystem, 25);
-            }
+        update_plant(&ecoSystem, 30);
+        update_herbivore(&ecoSystem);
+        update_carnivore(&ecoSystem);
+        reset_acted(&ecoSystem);
 
-            #pragma omp section
-            {
-                update_herbivore(&ecoSystem);
-            }
-
-            #pragma omp section
-            {
-                update_carnivore(&ecoSystem);
-            }
+        if (count_herbivores == 0 || count_carnivores == 0) {
+            printf("Early stop\n");
+            break;
         }
     }
+
+//    for(int i = 0; i < MAX_TICKS; i++) {
+//        printf("Tick %d\n", i + 1);
+//
+//        reset_acted(&ecoSystem);
+//
+//        int count_plants = 0;
+//        int count_herbivores = 0;
+//        int count_carnivores = 0;
+//        for (int t = 0; t < GRID_SIZE; t++) {
+//            for (int k = 0; k < GRID_SIZE; k++) {
+//                switch (ecoSystem.grid[t][k].type) {
+//                    case EMPTY:
+//                        printf(" E ");
+//                        break;
+//                    case PLANT:
+//                        printf(" P ");
+//                        count_plants++;
+//                        break;
+//                    case HERBIVORE:
+//                        printf(" H ");
+//                        count_herbivores++;
+//                        break;
+//                    case CARNIVORE:
+//                        printf(" C ");
+//                        count_carnivores++;
+//                        break;
+//                }
+//            }
+//            printf("\n");
+//        }
+//        printf("Plants: %d, Herbivores: %d, Carnivores: %d\n", count_plants, count_herbivores, count_carnivores);
+//        printf("\n");
+//
+//        #pragma omp parallel sections
+//        {
+//            #pragma omp section
+//            {
+//                update_plant(&ecoSystem, 20);
+//            }
+//
+//            #pragma omp section
+//            {
+//                update_herbivore(&ecoSystem);
+//            }
+//
+//            #pragma omp section
+//            {
+//                update_carnivore(&ecoSystem);
+//            }
+//        }
+//    }
 
     return 0;
 }
