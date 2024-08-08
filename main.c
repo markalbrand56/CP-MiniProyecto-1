@@ -5,7 +5,7 @@
 #include <pthread.h>
 
 
-#define GRID_SIZE 50
+#define GRID_SIZE 60
 
 #define PLANTS 200
 #define HERBIVORES 175
@@ -51,10 +51,12 @@ double death_probability(int age, double inflection_point, double steepness) {
     return 1.0 / (1.0 + exp(-(age - inflection_point) / steepness));
 }
 
-void reset_acted(EcoSystem *ecoSystem) {
+void reset_acted(EcoSystem *ecoSystem){
     for(int i = 0; i < GRID_SIZE; i++) {
         for(int j = 0; j < GRID_SIZE; j++) {
+            omp_set_lock(&ecoSystem->locks[i][j]);
             ecoSystem->grid[i][j].acted = false;
+            omp_unset_lock(&ecoSystem->locks[i][j]);
         }
     }
 }
@@ -72,6 +74,7 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance, int i, int j) {
 
     // Death by overpopulation
     int neighbors = 0;
+
     if (i + 1 < GRID_SIZE && ecoSystem->grid[i + 1][j].type == PLANT) neighbors++;
     if (i - 1 >= 0 && ecoSystem->grid[i - 1][j].type == PLANT) neighbors++;
     if (j + 1 < GRID_SIZE && ecoSystem->grid[i][j + 1].type == PLANT) neighbors++;
@@ -337,7 +340,7 @@ void update_carnivore(EcoSystem *ecoSystem, int i, int j){
 
 void init_ecosystem(EcoSystem *ecoSystem) {
     // Se inicializa el ecosistema con celdas vacías
-    #pragma parallel for collapse(2)
+    #pragma parallel for schedule(dynamic)
     for(int i = 0; i < GRID_SIZE; i++) {
         for(int j = 0; j < GRID_SIZE; j++) {
             ecoSystem->grid[i][j].type = EMPTY;
@@ -348,6 +351,8 @@ void init_ecosystem(EcoSystem *ecoSystem) {
             omp_init_lock(&ecoSystem->locks[i][j]);
         }
     }
+
+    #pragma barrier
 
     // Se generan las plantas, herbívoros y carnívoros de manera aleatoria
     for(int i = 0; i < PLANTS; i++) {
@@ -382,19 +387,17 @@ void init_ecosystem(EcoSystem *ecoSystem) {
 
 
 int main() {
-    omp_set_num_threads(4);
     EcoSystem ecoSystem;
     init_ecosystem(&ecoSystem);
+    omp_set_dynamic(1);
 
     int i;
     for(i = 0; i < MAX_TICKS; i++) {
-        #pragma barrier
         reset_acted(&ecoSystem);
 
         int count_plants = 0;
         int count_herbivores = 0;
         int count_carnivores = 0;
-
 
         #pragma omp parallel for schedule(dynamic)
         for (int t = 0; t < GRID_SIZE; t++) {
@@ -418,8 +421,10 @@ int main() {
             }
         }
 
-        printf("%d Plants: %d, Herbivores: %d, Carnivores: %d\n", i, count_plants, count_herbivores, count_carnivores);
-        printf("\n");
+        if (i % 100 == 0) {
+            printf("%d Plants: %d, Herbivores: %d, Carnivores: %d\n", i, count_plants, count_herbivores, count_carnivores);
+        }
+
 
         if (count_herbivores == 0 || count_carnivores == 0) {
             printf("Early stop\n");
@@ -449,8 +454,6 @@ int main() {
         printf("\n");
     }
     printf("Tick %d\n", i);
-
-
 
 
     return 0;
