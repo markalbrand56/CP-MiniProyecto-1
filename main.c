@@ -3,15 +3,16 @@
 #include <stdlib.h>
 #include <math.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 
-#define GRID_SIZE 60
+#define GRID_SIZE 80
 
-#define PLANTS 200
-#define HERBIVORES 175
-#define CARNIVORES 100
+#define PLANTS 2000
+#define HERBIVORES 1500
+#define CARNIVORES 500
 
-#define HERBIVORE_OLD 50
+#define HERBIVORE_OLD 30
 #define CARNIVORE_OLD 50
 
 #define MAX_TICKS 5000
@@ -265,9 +266,12 @@ void update_carnivore(EcoSystem *ecoSystem, int i, int j){
             return;
         }
 
+        omp_set_lock(&ecoSystem->locks[i][j]);
         ecoSystem -> grid[i][j].age += 1;
+        omp_unset_lock(&ecoSystem->locks[i][j]);
 
-        // Death by age
+
+    // Death by age
         double death_by_age = death_probability(ecoSystem->grid[i][j].age, CARNIVORE_OLD, 2);
         if (rand() % 100 < death_by_age * 100) {
 
