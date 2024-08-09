@@ -9,13 +9,13 @@
 #define GRID_SIZE 80    // Size of the grid
 
 #define PLANTS 2000 // Number of plants
-#define HERBIVORES 1500 // Number of herbivores
+#define HERBIVORES 1500// Number of herbivores
 #define CARNIVORES 500  // Number of carnivores
 
 #define HERBIVORE_OLD 30    // Age at which herbivores die
 #define CARNIVORE_OLD 50    // Age at which carnivores die
 
-#define MAX_TICKS 500   // Number of iterations
+#define MAX_TICKS 5500   // Number of iterations
 #define STARVATION 10   // Number of iterations before herbivores and carnivores die of starvation
 
 // Colors for the grid
@@ -344,7 +344,7 @@ void update_carnivore(EcoSystem *ecoSystem, int i, int j){
 
 // Function to initialize the ecosystem
 void init_ecosystem(EcoSystem *ecoSystem) {
-    
+
     // initialize the grid with empty cells
     #pragma parallel for schedule(dynamic)
     for(int i = 0; i < GRID_SIZE; i++) {
@@ -393,7 +393,6 @@ void init_ecosystem(EcoSystem *ecoSystem) {
 
 
 int main() {
-
     // Initialize the ecosystem
     EcoSystem ecoSystem;
     init_ecosystem(&ecoSystem);
@@ -430,41 +429,63 @@ int main() {
             }
         }
 
-        if (i % 100 == 0) {
-            printf("%d Plants: %d, Herbivores: %d, Carnivores: %d\n", i, count_plants, count_herbivores, count_carnivores);
-        }
+        // Print the ecosystem state every 500 ticks
+        if (i % 500 == 0) {
+            printf("Tick %d: Plants: %d, Herbivores: %d, Carnivores: %d\n", i, count_plants, count_herbivores, count_carnivores);
 
+            // Print the state of the grid
+            printf("State at Tick %d\n", i);
+            for (int t = 0; t < GRID_SIZE; t++) {
+                for (int k = 0; k < GRID_SIZE; k++) {
+                    switch (ecoSystem.grid[t][k].type) {
+                        case EMPTY:
+                            printf(" %sE%s ", COLOR_EMPTY, COLOR_RESET);
+                            break;
+                        case PLANT:
+                            printf(" %sP%s ", COLOR_PLANT, COLOR_RESET);
+                            break;
+                        case HERBIVORE:
+                            printf(" %sH%s ", COLOR_HERBIVORE, COLOR_RESET);
+                            break;
+                        case CARNIVORE:
+                            printf(" %sC%s ", COLOR_CARNIVORE, COLOR_RESET);
+                            break;
+                    }
+                }
+                printf("\n");
+            }
+        }
 
         if (count_herbivores == 0 || count_carnivores == 0) {
             printf("Early stop\n");
             break;
         }
-
     }
 
     // Print the final state of the ecosystem
-    printf("Final state\n");
-    for (int t = 0; t < GRID_SIZE; t++) {
-        for (int k = 0; k < GRID_SIZE; k++) {
-            switch (ecoSystem.grid[t][k].type) {
-                case EMPTY:
-                    printf(" %sE%s ", COLOR_EMPTY, COLOR_RESET);
-                    break;
-                case PLANT:
-                    printf(" %sP%s ", COLOR_PLANT, COLOR_RESET);
-                    break;
-                case HERBIVORE:
-                    printf(" %sH%s ", COLOR_HERBIVORE, COLOR_RESET);
-                    break;
-                case CARNIVORE:
-                    printf(" %sC%s ", COLOR_CARNIVORE, COLOR_RESET);
-                    break;
+    if (i % 500 != 0) {  // Ensure final state is printed if it was not at a multiple of 500
+        printf("Final state\n");
+        for (int t = 0; t < GRID_SIZE; t++) {
+            for (int k = 0; k < GRID_SIZE; k++) {
+                switch (ecoSystem.grid[t][k].type) {
+                    case EMPTY:
+                        printf(" %sE%s ", COLOR_EMPTY, COLOR_RESET);
+                        break;
+                    case PLANT:
+                        printf(" %sP%s ", COLOR_PLANT, COLOR_RESET);
+                        break;
+                    case HERBIVORE:
+                        printf(" %sH%s ", COLOR_HERBIVORE, COLOR_RESET);
+                        break;
+                    case CARNIVORE:
+                        printf(" %sC%s ", COLOR_CARNIVORE, COLOR_RESET);
+                        break;
+                }
             }
+            printf("\n");
         }
-        printf("\n");
+        printf("Tick %d\n", i);
     }
-    printf("Tick %d\n", i);
-
 
     return 0;
 }
