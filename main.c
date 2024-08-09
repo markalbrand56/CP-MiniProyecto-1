@@ -6,17 +6,18 @@
 #include <stdbool.h>
 
 
-#define GRID_SIZE 80    // Size of the grid
+#define GRID_SIZE 80        // Size of the grid
 
-#define PLANTS 2000 // Number of plants
-#define HERBIVORES 1500// Number of herbivores
-#define CARNIVORES 500  // Number of carnivores
+#define PLANTS 2000         // Number of plants
+#define HERBIVORES 1500     // Number of herbivores
+#define CARNIVORES 500      // Number of carnivores
 
 #define HERBIVORE_OLD 30    // Age at which herbivores die
 #define CARNIVORE_OLD 50    // Age at which carnivores die
 
-#define MAX_TICKS 5500   // Number of iterations
-#define STARVATION 10   // Number of iterations before herbivores and carnivores die of starvation
+#define MAX_TICKS 10000     // Number of iterations
+#define DEBUG_TICK 500      // Number of iterations before printing the state of the grid
+#define STARVATION 10       // Number of iterations before herbivores and carnivores die of starvation
 
 // Colors for the grid
 #define COLOR_PLANT "\x1b[32m"
@@ -393,6 +394,15 @@ void init_ecosystem(EcoSystem *ecoSystem) {
 
 
 int main() {
+    // open file 'iter.log' for writing
+    FILE *file = fopen("iter.log", "w");
+
+    if (file == NULL) {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+
+
     // Initialize the ecosystem
     EcoSystem ecoSystem;
     init_ecosystem(&ecoSystem);
@@ -429,8 +439,11 @@ int main() {
             }
         }
 
-        // Print the ecosystem state every 500 ticks
-        if (i % 500 == 0) {
+        // Write the ecosystem state to the file
+        #pragma omp critical
+        fprintf(file, "Tick %d: Plants: %d, Herbivores: %d, Carnivores: %d\n", i, count_plants, count_herbivores, count_carnivores);
+
+        if (i % DEBUG_TICK == 0) {
             printf("Tick %d: Plants: %d, Herbivores: %d, Carnivores: %d\n", i, count_plants, count_herbivores, count_carnivores);
 
             // Print the state of the grid
@@ -463,7 +476,7 @@ int main() {
     }
 
     // Print the final state of the ecosystem
-    if (i % 500 != 0) {  // Ensure final state is printed if it was not at a multiple of 500
+    if (i % 1000 != 0) {  // Ensure final state is printed if it was not at a multiple of 500
         printf("Final state\n");
         for (int t = 0; t < GRID_SIZE; t++) {
             for (int k = 0; k < GRID_SIZE; k++) {
@@ -486,6 +499,9 @@ int main() {
         }
         printf("Tick %d\n", i);
     }
+
+    // Close the file
+    fclose(file);
 
     return 0;
 }
