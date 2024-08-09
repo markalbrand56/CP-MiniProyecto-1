@@ -6,25 +6,26 @@
 #include <stdbool.h>
 
 
-#define GRID_SIZE 80
+#define GRID_SIZE 80    // Size of the grid
 
-#define PLANTS 2000
-#define HERBIVORES 1500
-#define CARNIVORES 500
+#define PLANTS 2000 // Number of plants
+#define HERBIVORES 1500 // Number of herbivores
+#define CARNIVORES 500  // Number of carnivores
 
-#define HERBIVORE_OLD 30
-#define CARNIVORE_OLD 50
+#define HERBIVORE_OLD 30    // Age at which herbivores die
+#define CARNIVORE_OLD 50    // Age at which carnivores die
 
-#define MAX_TICKS 5000
-#define STARVATION 10
+#define MAX_TICKS 500   // Number of iterations
+#define STARVATION 10   // Number of iterations before herbivores and carnivores die of starvation
 
+// Colors for the grid
 #define COLOR_PLANT "\x1b[32m"
 #define COLOR_HERBIVORE "\x1b[34m"
 #define COLOR_CARNIVORE "\x1b[31m"
 #define COLOR_EMPTY "\x1b[37m"
 #define COLOR_RESET "\x1b[0m"
 
-
+// Cell types
 typedef enum {
     PLANT,
     HERBIVORE,
@@ -32,6 +33,7 @@ typedef enum {
     EMPTY
 } CellType;
 
+// Cell structure
 typedef struct {
     int energy;
     int age;
@@ -41,17 +43,19 @@ typedef struct {
 } Cell;
 
 
-
+// Ecosystem structure
 typedef struct {
     Cell grid[GRID_SIZE][GRID_SIZE];
     omp_lock_t locks[GRID_SIZE][GRID_SIZE];
 
 } EcoSystem;
 
+// Function to calculate the probability of death
 double death_probability(int age, double inflection_point, double steepness) {
     return 1.0 / (1.0 + exp(-(age - inflection_point) / steepness));
 }
 
+// Function to reset the acted flag
 void reset_acted(EcoSystem *ecoSystem){
     for(int i = 0; i < GRID_SIZE; i++) {
         for(int j = 0; j < GRID_SIZE; j++) {
@@ -62,7 +66,7 @@ void reset_acted(EcoSystem *ecoSystem){
     }
 }
 
-
+// Function to update the plant
 void update_plant(EcoSystem *ecoSystem, int reproduction_chance, int i, int j) {
     if (ecoSystem->grid[i][j].acted) {
         return;
@@ -110,19 +114,16 @@ void update_plant(EcoSystem *ecoSystem, int reproduction_chance, int i, int j) {
             break;
     }
 
-    // Cell is empy and the reproduction chance is greater that reproduction probability
+    // Cell is empty and the reproduction chance is greater that reproduction probability
     if (ecoSystem->grid[x][y].type == EMPTY && (rand() % 100) < reproduction_chance) {
         omp_set_lock(&ecoSystem->locks[x][y]);
         ecoSystem->grid[x][y] = (Cell){1, 0, 0, true, PLANT};  // New plant is born
         omp_unset_lock(&ecoSystem->locks[x][y]);
 
     }
-
 }
 
-
-
-
+// Function to update the herbivore
 void update_herbivore(EcoSystem *ecoSystem, int i, int j) {
 
         if (ecoSystem->grid[i][j].acted) {
@@ -250,6 +251,7 @@ void update_herbivore(EcoSystem *ecoSystem, int i, int j) {
         }
 }
 
+// Function to update the carnivore
 void update_carnivore(EcoSystem *ecoSystem, int i, int j){
         if (ecoSystem->grid[i][j].acted) {
             return;
@@ -269,7 +271,6 @@ void update_carnivore(EcoSystem *ecoSystem, int i, int j){
         omp_set_lock(&ecoSystem->locks[i][j]);
         ecoSystem -> grid[i][j].age += 1;
         omp_unset_lock(&ecoSystem->locks[i][j]);
-
 
     // Death by age
         double death_by_age = death_probability(ecoSystem->grid[i][j].age, CARNIVORE_OLD, 2);
@@ -314,7 +315,7 @@ void update_carnivore(EcoSystem *ecoSystem, int i, int j){
             omp_unset_lock(&ecoSystem->locks[x][y]);
             omp_unset_lock(&ecoSystem->locks[i][j]);
 
-//            printf("Carnivore ate herbivore\n");
+        //printf("Carnivore ate herbivore\n");
         } else if (ecoSystem -> grid[x][y].type == EMPTY){
             ecoSystem -> grid[i][j].starve += 1;
 
@@ -341,9 +342,10 @@ void update_carnivore(EcoSystem *ecoSystem, int i, int j){
         }
 }
 
-
+// Function to initialize the ecosystem
 void init_ecosystem(EcoSystem *ecoSystem) {
-    // Se inicializa el ecosistema con celdas vacías
+    
+    // initialize the grid with empty cells
     #pragma parallel for schedule(dynamic)
     for(int i = 0; i < GRID_SIZE; i++) {
         for(int j = 0; j < GRID_SIZE; j++) {
@@ -358,7 +360,7 @@ void init_ecosystem(EcoSystem *ecoSystem) {
 
     #pragma barrier
 
-    // Se generan las plantas, herbívoros y carnívoros de manera aleatoria
+    // Add plants, herbivores and carnivores to the grid randomly
     for(int i = 0; i < PLANTS; i++) {
         int x = rand() % GRID_SIZE;
         int y = rand() % GRID_SIZE;
@@ -391,6 +393,8 @@ void init_ecosystem(EcoSystem *ecoSystem) {
 
 
 int main() {
+
+    // Initialize the ecosystem
     EcoSystem ecoSystem;
     init_ecosystem(&ecoSystem);
     omp_set_dynamic(1);
@@ -403,6 +407,7 @@ int main() {
         int count_herbivores = 0;
         int count_carnivores = 0;
 
+        // Update the cells in parallel
         #pragma omp parallel for schedule(dynamic)
         for (int t = 0; t < GRID_SIZE; t++) {
             for (int k = 0; k < GRID_SIZE; k++) {
@@ -437,6 +442,7 @@ int main() {
 
     }
 
+    // Print the final state of the ecosystem
     printf("Final state\n");
     for (int t = 0; t < GRID_SIZE; t++) {
         for (int k = 0; k < GRID_SIZE; k++) {
@@ -462,4 +468,3 @@ int main() {
 
     return 0;
 }
-
